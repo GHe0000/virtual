@@ -23,7 +23,6 @@ class layer:
         self.name = name
         self.npdata = npdata
         self.texture_num, texture_pos = self.get_texture()
-        self.变形 = []
 
         q, w = texture_pos
         a, b, c, d = bbox
