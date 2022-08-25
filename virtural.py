@@ -82,10 +82,10 @@ class layer:
 
 
 class Virtural:
-    def __init__(self, psd_path, depth_yaml, shape_yaml, size=(1024, 1024)):
+    def __init__(self, psd_path, inf_yaml, shape_yaml, size=(1024, 1024)):
         psd = psd_tools.PSDImage.open(psd_path)
-        with open(depth_yaml, encoding='utf8') as f:
-            depth_inf = yaml.safe_load(f)
+        with open(inf_yaml, encoding='utf8') as f:
+            inf = yaml.safe_load(f)
 
         with open(shape_yaml, encoding='utf8') as f:
             self.change_inf = yaml.safe_load(f)
@@ -95,12 +95,12 @@ class Virtural:
         self.size = size
         
         for l in psd:
-            a, b, c, d = l.bbox
+            a, b, c, d = inf[l.name]['bbox']
             npdata = l.numpy()
             npdata[:, :, 0], npdata[:, :, 2] = npdata[:, :, 2].copy(), npdata[:, :, 0].copy()
             self.Layers.append(layer(
                 name=l.name,
-                z=depth_inf[l.name]['depth'],
+                z=inf[l.name]['depth'],
                 bbox=(b, a, d, c),
                 npdata=npdata
             ))
@@ -119,7 +119,7 @@ class Virtural:
 
     # 位置
     def add_pos(self, face_size, x, y, a):
-        
+        f = 0.01 * face_size
         extra = matrix.translate(x, -y, 0) @ \
                 matrix.scale(f, f, 1)
         return a @ extra
@@ -149,26 +149,6 @@ class Virtural:
 
     def draw_loop(self, window, feature):
 
-        # @functools.lru_cache(maxsize=16)
-        # def model(xz, zy, xy, 脸大小, x偏移, y偏移):
-        #     model_p = \
-        #         matrix.translate(0, 0, -0.9) @ \
-        #         matrix.rotate_ax(xz, axis=(0, 2)) @ \
-        #         matrix.rotate_ax(zy, axis=(2, 1)) @ \
-        #         matrix.translate(0, 0.9, 0.9) @ \
-        #         matrix.rotate_ax(xy, axis=(0, 1)) @ \
-        #         matrix.translate(0, -0.9, 0) @ \
-        #         matrix.perspective(999)
-        #     f = 144/(220-脸大小)
-        #     extra = matrix.translate(x偏移*0.6, -y偏移*0.8, 0) @ \
-        #             matrix.scale(f, f, 1)
-        #     return model_p @ extra
-
-        # model_g = \
-        #     matrix.scale(2 / self.size[0], 2 / self.size[1], 1) @ \
-        #     matrix.translate(-1, -1, 0) @ \
-        #     matrix.rotate_ax(-math.pi / 2, axis=(0, 1))
-
         def draw(Layers):
             Vertexs = []
             for square in Layers.get_square():
@@ -180,7 +160,6 @@ class Virtural:
             a = ps[:, :4]
             b = ps[:, 4:]
             a = self.add_cut(a)
-            # a = a @ model_g
             z = a[:, 2:3]
             a[:, :2] *= z
             b *= z
@@ -190,18 +169,14 @@ class Virtural:
                 ['close_eyes', 1 - eye],
             ], Layers.name, a)
 
-            xz = yaw / 1.3
-            zy = pitch / 1.5
-            xy = roll / 5
-            if Layers.name != 'body':
+            if Layers.name == 'body':
+                a = self.add_rot(np.array([yaw, pitch, roll/10]),a)
+            else:
                 a = self.add_rot(np.array([yaw, pitch, roll]),a)
-                # xz /= 8
-                # zy = 0
             a = self.add_pos(face,x,y,a)
-            # a = a @ model(xz, zy, xy, face, x, y)
-            # a = a @ matrix.scale(2,2,2) \
-            #     @ matrix.rotate_ax(0.3, axis=(0, 2)) \
-            #     @ matrix.translate(0.5, 0, 0.4)
+            a = a @ matrix.scale(2,2,2) \
+                @ matrix.rotate_ax(0.5, axis=(0, 2)) \
+                @ matrix.translate(0.4, 0, 0.2)
             a = a @ matrix.perspective(999)
             for i in range(len(Vertexs)):
                 if i % 4 == 0:
@@ -259,7 +234,7 @@ def init_window():
 
 
 # 滤波
-S = np.zeros((5,11))
+S = np.zeros((8,11))
 def SlidingAverage(i):
     global S
     S = np.delete(S,0,axis=0)
@@ -270,7 +245,7 @@ def SlidingAverage(i):
 # feature定义
 # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
 feature = None
-coefficient = np.array([0.1,0.1,0.2,0.2,0.3,1,1,1,50,50,80]) # 各个参数的系数
+coefficient = np.array([0.1,0.1,0.3,0.3,0.4,1,1,1,50,50,80]) # 各个参数的系数
 bias = np.array([-0.3,-0.5,0,0,0,0,0,0,-0.03,-0.03,-0.05]) # 各个参数的偏置
 def feature_generate():
     global feature
@@ -281,7 +256,7 @@ def feature_generate():
 
 def test_feature():
     # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
-    return np.array([0.02,0.02,0,0,0,0,1,1,0,0,1])
+    return np.array([0,0,0,0,0,130,1,1,0,0,1])
 
 
 def test_mouse():
@@ -291,6 +266,6 @@ def test_mouse():
 
 
 window = init_window()
-V = Virtural(psd_path='test.psd', depth_yaml='test_deep_inf.yaml', shape_yaml='test_inf.yaml')
+V = Virtural(psd_path='test.psd', inf_yaml='test_deep_inf.yaml', shape_yaml='test_inf.yaml')
 # V.draw_loop(window, feature = test_feature)
 V.draw_loop(window, feature = feature_generate)
