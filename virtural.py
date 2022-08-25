@@ -14,13 +14,8 @@ from OpenGL.GLU import *
 from OpenGL.arrays import vbo
 
 import win32api
-import psd_tools
-
 import matrix
-
 import facetracter
-
-import functools
 
 v_size = 256,256
 
@@ -82,8 +77,7 @@ class layer:
 
 
 class Virtural:
-    def __init__(self, psd_path, inf_yaml, shape_yaml, size=(1024, 1024)):
-        psd = psd_tools.PSDImage.open(psd_path)
+    def __init__(self, inf_yaml, shape_yaml, size=(1024, 1024), pic_size=(1024, 1024)):
         with open(inf_yaml, encoding='utf8') as f:
             inf = yaml.safe_load(f)
 
@@ -91,16 +85,16 @@ class Virtural:
             self.change_inf = yaml.safe_load(f)
         
         self.Layers = []
-        self.psd_size = psd.size
+        self.psd_size = pic_size
         self.size = size
         
-        for l in psd:
-            a, b, c, d = inf[l.name]['bbox']
-            npdata = l.numpy()
+        for l in inf:
+            a, b, c, d = inf[l]['bbox']
+            npdata = np.load(inf[l]['path'][0])
             npdata[:, :, 0], npdata[:, :, 2] = npdata[:, :, 2].copy(), npdata[:, :, 0].copy()
             self.Layers.append(layer(
-                name=l.name,
-                z=inf[l.name]['depth'],
+                name=l,
+                z=inf[l]['depth'],
                 bbox=(b, a, d, c),
                 npdata=npdata
             ))
@@ -174,9 +168,9 @@ class Virtural:
             else:
                 a = self.add_rot(np.array([yaw, pitch, roll]),a)
             a = self.add_pos(face,x,y,a)
-            a = a @ matrix.scale(2,2,2) \
-                @ matrix.rotate_ax(0.5, axis=(0, 2)) \
-                @ matrix.translate(0.4, 0, 0.2)
+            # a = a @ matrix.scale(2,2,2) \
+            #     @ matrix.rotate_ax(0.5, axis=(0, 2)) \
+            #     @ matrix.translate(0.4, 0, 0.2)
             a = a @ matrix.perspective(999)
             for i in range(len(Vertexs)):
                 if i % 4 == 0:
@@ -266,6 +260,6 @@ def test_mouse():
 
 
 window = init_window()
-V = Virtural(psd_path='test.psd', inf_yaml='test_deep_inf.yaml', shape_yaml='test_inf.yaml')
+V = Virtural(inf_yaml='test_deep_inf.yaml', shape_yaml='test_inf.yaml')
 # V.draw_loop(window, feature = test_feature)
 V.draw_loop(window, feature = feature_generate)
