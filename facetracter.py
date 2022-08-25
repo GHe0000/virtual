@@ -6,6 +6,7 @@ import cv2
 import dlib
 import numpy as np
 
+
 # 计算多边形面积
 def area(a):
     a = np.array(a)
@@ -56,19 +57,23 @@ def get_rotation(pts):
     roll = np.cross(l1, [0, 1]) / l1_length
     return np.array([yaw, pitch, roll])
 
+
 # 计算相对位置
 def get_rlt_pos(img, pos):
     x = (pos.top() + pos.bottom())/2/img.shape[0]
     y = 1 - (pos.left() + pos.right())/2/img.shape[1]
     return np.array([x, y])
 
+
 # 计算面部大小
 def face_size(pts):
     return np.array([area(pts[0:17])**0.5])
 
+
 # 计算嘴大小
 def mouth_size(pts):
     return np.array([area(pts[48:60]) / area(pts[0:17])])
+
 
 # 计算眼睛大小
 def eye_size(pts):
@@ -76,11 +81,13 @@ def eye_size(pts):
     r = area(pts[42:48]) / area(pts[0:17])
     return np.array([l,r])
 
+
 # 计算眉毛高度
 def brow_height(pts): 
     l = area([*pts[18:22]]+[pts[38], pts[37]]) / area(pts[0:17])
     r = area([*pts[22:26]]+[pts[44], pts[43]]) / area(pts[0:17])
     return np.array([l, r])
+
 
 # 初始化
 def init_func(img):
@@ -91,14 +98,15 @@ def init_func(img):
     rot = get_rotation(pts)
     return np.concatenate([rot])
 
+
 # 主循环
 def loop_func():
     global feature
 
-    feature = np.array([0,0,0,0,0,0,0,0,0,0])
+    feature = np.array([0,0,0,0,0,0,0,0,0,0,0])
     init_rot = init_func(cv2.imread('std_face.jpg'))
     cap = cv2.VideoCapture(0)
-    logging.warning('开始捕捉了！')
+    logging.warning('Looping......')
     while True:
         ret, img = cap.read()
         pos = get_pos(img)
@@ -106,16 +114,19 @@ def loop_func():
             pts = get_pts(img, pos)
             rlt_pos = get_rlt_pos(img, pos)
             rot = get_rotation(pts) - init_rot
+            face = face_size(pts)
             eye = eye_size(pts)
             brow = brow_height(pts)
             mouth = mouth_size(pts)
-            feature = np.concatenate([rlt_pos, rot, eye, brow, mouth])
+            feature = np.concatenate([rlt_pos, rot, face, eye, brow, mouth])
 
             # 绘图监测
             img //= 2
+            # img = np.ones([512, 512], dtype=np.float32)
             img[pos.top():pos.bottom(), pos.left():pos.right()] *= 2 
             for i, (px, py) in enumerate(pts):
                 cv2.putText(img, str(i), (int(px), int(py)), cv2.FONT_HERSHEY_COMPLEX, 0.25, (255, 255, 255))
+                # cv2.putText(img, str(i), (int(px), int(py)), cv2.FONT_HERSHEY_COMPLEX, 0.25, (0, 0, 0))
 
         cv2.imshow('', img[:, ::-1])
         cv2.waitKey(1)
@@ -130,7 +141,9 @@ def get_feature():
 t = threading.Thread(target=loop_func)
 t.setDaemon(True)
 t.start()
-logging.warning('捕捉线程启动中……')
+logging.warning('Starting......')
+
+np.set_printoptions(suppress=True)
 
 if __name__ == '__main__':
     while True:
