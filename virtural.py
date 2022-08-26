@@ -91,7 +91,6 @@ class Virtural:
         for l in inf:
             a, b, c, d = inf[l]['bbox']
             npdata = np.load(inf[l]['path'][0])
-            npdata[:, :, 0], npdata[:, :, 2] = npdata[:, :, 2].copy(), npdata[:, :, 0].copy()
             self.Layers.append(layer(
                 name=l,
                 z=inf[l]['depth'],
