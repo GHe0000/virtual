@@ -102,6 +102,7 @@ def init_func(img):
 # 主循环
 def loop_func():
     global feature
+    global img2
 
     feature = np.array([0,0,0,0,0,0,0,0,0,0,0])
     init_rot = init_func(cv2.imread('std_face.jpg'))
@@ -120,17 +121,25 @@ def loop_func():
             mouth = mouth_size(pts)
             feature = np.concatenate([rlt_pos, rot, face, eye, brow, mouth])
 
-            # 绘图监测
-            img //= 2
-            # img = np.ones([512, 512], dtype=np.float32)
-            img[pos.top():pos.bottom(), pos.left():pos.right()] *= 2 
-            for i, (px, py) in enumerate(pts):
-                cv2.putText(img, str(i), (int(px), int(py)), cv2.FONT_HERSHEY_COMPLEX, 0.25, (255, 255, 255))
-                # cv2.putText(img, str(i), (int(px), int(py)), cv2.FONT_HERSHEY_COMPLEX, 0.25, (0, 0, 0))
+        #     # 绘图监测
+        #     img //= 2
+        #     img[pos.top():pos.bottom(), pos.left():pos.right()] *= 2 
+        #     for i, (px, py) in enumerate(pts):
+        #         cv2.putText(img, str(i), (int(px), int(py)), cv2.FONT_HERSHEY_COMPLEX, 0.25, (255, 255, 255))
+        #         # cv2.putText(img, str(i), (int(px), int(py)), cv2.FONT_HERSHEY_COMPLEX, 0.25, (0, 0, 0))
 
-        cv2.imshow('', img[:, ::-1])
-        cv2.waitKey(1)
+        # cv2.imshow('', img[:, ::-1])
+        # cv2.waitKey(1)
         
+            # 绘图监测
+            img2 = np.ones([512, 512], dtype=np.float32)
+            img2[pos.top():pos.bottom(), pos.left():pos.right()] *= 2 
+            for i, (px, py) in enumerate(pts):
+                cv2.putText(img2, str(i), (int(px), int(py)), cv2.FONT_HERSHEY_COMPLEX, 0.25, (0, 0, 0))
+
+        cv2.imshow('', img2[:, ::1])
+        cv2.waitKey(1)
+
         time.sleep(1/60)
 
 
@@ -146,6 +155,8 @@ logging.warning('Starting......')
 np.set_printoptions(suppress=True)
 
 if __name__ == '__main__':
+    img2 = np.ones([512, 512], dtype=np.float32)
     while True:
         time.sleep(0.1)
+        # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
         print(feature)

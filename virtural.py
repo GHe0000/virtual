@@ -17,13 +17,14 @@ import win32api
 import matrix
 import facetracter
 
-v_size = 256,256
+v_size = 512,512
 
 # 图层类
 class layer:
-    def __init__(self, name, bbox, z, npdata):
+    def __init__(self, name, bbox, z, npdata, visual):
         self.name = name
         self.npdata = npdata
+        self.visual = visual
         self.texture_num, texture_pos = self.get_texture()
 
         q, w = texture_pos
@@ -90,20 +91,16 @@ class Virtural:
         
         for l in inf:
             a, b, c, d = inf[l]['bbox']
-            npdata = np.load(inf[l]['path'][0])
             self.Layers.append(layer(
                 name=l,
                 z=inf[l]['depth'],
                 bbox=(b, a, d, c),
-                npdata=npdata
+                npdata=np.load(inf[l]['path']),
+                visual=inf[l]['visual']
             ))
 
     # 缩放
     def add_cut(self, a):
-        # model_g = \
-        #         matrix.scale(2 / self.size[0], 2 / self.size[1], 1) @ \
-        #         matrix.translate(-1, -1, 0) @ \
-        #         matrix.rotate_ax(-math.pi / 2, axis=(0, 1))
         model_g = \
                 matrix.scale(2 / self.psd_size[0], 2 / self.psd_size[1], 1) @ \
                 matrix.translate(-1, -1, 0) @ \
@@ -112,7 +109,7 @@ class Virtural:
 
     # 位置
     def add_pos(self, face_size, x, y, a):
-        f = 0.01 * face_size
+        f = 0.007 * face_size
         extra = matrix.translate(x, -y, 0) @ \
                 matrix.scale(f, f, 1)
         return a @ extra
@@ -132,19 +129,18 @@ class Virtural:
     def add_changes(self, Changes, layer_name, a):
         for change_name, intensity in Changes:
             change = self.change_inf[change_name]
-            if layer_name not in change:
-                return a
-            if 'pos' in change[layer_name]:
-                d = change[layer_name]['pos']
-                d = np.array(d)
-                a[:, :2] += d.reshape(a.shape[0], 2) * intensity
+            if layer_name in change:
+                if 'pos' in change[layer_name]:
+                    d = change[layer_name]['pos']
+                    d = np.array(d)
+                    a[:, :2] += d.reshape(a.shape[0], 2) * intensity
         return a
 
     def draw_loop(self, window, feature):
 
-        def draw(Layers):
+        def draw(layer):
             Vertexs = []
-            for square in Layers.get_square():
+            for square in layer.get_square():
                 [[p1, p2],
                  [p4, p3]] = square
                 Vertexs += [p1, p2, p3, p4]
@@ -159,17 +155,24 @@ class Virtural:
             
             a = self.add_changes([
                 ['close_mouth', 1 - mouth],
-                ['close_eyes', 1 - eye],
-            ], Layers.name, a)
+                ['l_brow', brow_l],
+                ['r_brow', brow_r],
+                ['l_eye',1 - eye_l],
+                ['r_eye',1 - eye_r]
+            ], layer.name, a)
 
-            if Layers.name == 'body':
+            if layer.name == 'body':
                 a = self.add_rot(np.array([yaw, pitch, roll/10]),a)
             else:
                 a = self.add_rot(np.array([yaw, pitch, roll]),a)
+            if layer.name == 'hand':
+                a = a @ matrix.translate(0.05, 0.02, 0) @ \
+                        matrix.rotate_ax(-mouse_theta, axis=(0, 1))@ \
+                        matrix.translate(-0.05, -0.02, 0)
             a = self.add_pos(face,x,y,a)
-            # a = a @ matrix.scale(2,2,2) \
-            #     @ matrix.rotate_ax(0.5, axis=(0, 2)) \
-            #     @ matrix.translate(0.4, 0, 0.2)
+            a = a @ matrix.scale(2,2,2) \
+                @ matrix.rotate_ax(0.5, axis=(0, 2)) \
+                @ matrix.translate(0.4, 0, 0.2)
             a = a @ matrix.perspective(999)
             for i in range(len(Vertexs)):
                 if i % 4 == 0:
@@ -184,19 +187,23 @@ class Virtural:
             glClearColor(0,0,0,0)
             glClear(GL_COLOR_BUFFER_BIT)
             x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth = feature()
-            eye = (eye_l + eye_r)/2
-            for Layers in self.Layers:
-                glEnable(GL_TEXTURE_2D)
-                glBindTexture(GL_TEXTURE_2D, Layers.texture_num)
-                glColor4f(1, 1, 1, 1)
-                glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-                draw(Layers)
+            for layer in self.Layers:
+                if layer.name == 'Q':
+                    layer.visual = key_t[0]
+                if layer.name == 'hand':
+                    layer.visual = key_t[1]
+                if layer.visual == True:
+                    glEnable(GL_TEXTURE_2D)
+                    glBindTexture(GL_TEXTURE_2D, layer.texture_num)
+                    glColor4f(1, 1, 1, 1)
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
+                    draw(layer)
 
-                # 框图
-                glDisable(GL_TEXTURE_2D)
-                glColor4f(0, 0, 0, 1)
-                glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-                draw(Layers)
+                    # 框图
+                    glDisable(GL_TEXTURE_2D)
+                    glColor4f(0, 0, 0, 1)
+                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+                    draw(layer)
             glfw.swap_buffers(window)
             time.sleep(1/30)
             test_mouse()
@@ -218,6 +225,9 @@ def init_window():
     glfw.make_context_current(window)
     monitor_size = glfw.get_video_mode(glfw.get_primary_monitor()).size
     glfw.set_window_pos(window, monitor_size.width - v_size[0], monitor_size.height - v_size[1])
+    glfw.set_window_pos_callback(window, window_pos_callback)
+    glfw.set_key_callback(window, on_key)
+    window_pos = np.array([monitor_size.width - v_size[0], monitor_size.height - v_size[1]])
     glViewport(0, 0, *v_size)
     glEnable(GL_TEXTURE_2D)
     glEnable(GL_BLEND)
@@ -238,8 +248,8 @@ def SlidingAverage(i):
 # feature定义
 # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
 feature = None
-coefficient = np.array([0.1,0.1,0.3,0.3,0.4,1,1,1,50,50,80]) # 各个参数的系数
-bias = np.array([-0.3,-0.5,0,0,0,0,0,0,-0.03,-0.03,-0.05]) # 各个参数的偏置
+coefficient = np.array([0.1,0.1,0.3,0.3,0.4,1,100,100,100,100,80]) # 各个参数的系数
+bias = np.array([-0.3,-0.5,0,0,0,0,-0.006,-0.006,-0.03,-0.03,-0.06]) # 各个参数的偏置
 def feature_generate():
     global feature
     feature = SlidingAverage((facetracter.get_feature() + bias) * coefficient)
@@ -249,16 +259,31 @@ def feature_generate():
 
 def test_feature():
     # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
-    return np.array([0,0,0,0,0,130,1,1,0,0,1])
+    return np.array([0,0,0,0,0,130,0,1,1,1,1])
 
+def window_pos_callback(window, x, y):
+    global window_pos
+    window_pos = np.array([x,y])
 
+mouse_theta = 0
 def test_mouse():
+    global mouse_theta
     x, y = win32api.GetCursorPos()
-    mouse_pos = np.array([x+1,y+1])/np.array(monitor_size)
-    # print(mouse_pos)
+    if (window_pos[0] - x - 1) != 0:
+        mouse_theta = np.arctan((window_pos[1] - y - 1)/(window_pos[0] - x - 1))
+    # print(mouse_theta)
 
+key_t = np.array([False,False,False])
+def on_key(window, key, scancode, action, mods):
+    global key_t
+    if key == glfw.KEY_F1 and action == glfw.PRESS:
+        key_t[0] = not(key_t[0])
+    if key == glfw.KEY_F2 and action == glfw.PRESS:
+        key_t[1] = not(key_t[1])
+    if key == glfw.KEY_F3 and action == glfw.PRESS:
+        key_t[1] = not(key_t[2])
 
 window = init_window()
-V = Virtural(inf_yaml='test_deep_inf.yaml', shape_yaml='test_inf.yaml')
+V = Virtural(inf_yaml='test2_init_inf.yaml', shape_yaml='test2_inf.yaml')
 # V.draw_loop(window, feature = test_feature)
 V.draw_loop(window, feature = feature_generate)
