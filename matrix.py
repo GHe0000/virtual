@@ -1,11 +1,8 @@
 import math
 from math import sin, cos
-import functools
-
 import numpy as np
 
 
-@functools.lru_cache(maxsize=128)
 def scale(x, y, z):
     a = np.eye(4, dtype=np.float32)
     a[0, 0] = x
@@ -14,7 +11,6 @@ def scale(x, y, z):
     return a
 
 
-@functools.lru_cache(maxsize=128)
 def rotate_ax(r, axis: tuple):
     a = np.eye(4, dtype=np.float32)
     a[axis[0], axis[0]] = cos(r)
@@ -24,7 +20,6 @@ def rotate_ax(r, axis: tuple):
     return a
 
 
-@functools.lru_cache(maxsize=128)
 def rotate(angle, v):
     v = np.array(v, dtype=np.float32)
     v /= np.linalg.norm(v)
@@ -46,7 +41,6 @@ def rotate(angle, v):
     return arm4 @ rotate_ax(angle, axis=(0, 1)) @ rm4
 
 
-@functools.lru_cache(maxsize=128)
 def translate(x, y, z):
     a = np.eye(4, dtype=np.float32)
     a[3, 0] = x
@@ -55,7 +49,6 @@ def translate(x, y, z):
     return a
 
 
-@functools.lru_cache(maxsize=128)
 def perspective(view_distance):
     a = np.eye(4, dtype=np.float32)
     a[2, 2] = 1 / view_distance

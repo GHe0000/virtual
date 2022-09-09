@@ -15,9 +15,10 @@ from OpenGL.arrays import vbo
 
 import win32api
 import matrix
+
 import facetracter
 
-v_size = 512,512
+v_size = 256, 256
 
 # 图层类
 class layer:
@@ -53,6 +54,7 @@ class layer:
         w, h = self.npdata.shape[:2]
         d = 2**int(max(math.log2(w), math.log2(h)) + 1)
         texture = np.zeros([d, d, 4], dtype=self.npdata.dtype)
+        texture[:, :, :3] = 255
         texture[:w, :h] = self.npdata
 
         width, height = texture.shape[:2]
@@ -63,19 +65,9 @@ class layer:
         glGenerateMipmap(GL_TEXTURE_2D)
 
         return texture_num, (w / d, h / d)
-    
-    # 生成方块节点
-    def get_square(self):
-        x, y, _ = self.vertex.shape
-        square = []
-        for i in range(x-1):
-            for j in range(y-1):
-                square.append(
-                    [[self.vertex[i, j], self.vertex[i, j+1]],
-                     [self.vertex[i+1, j], self.vertex[i+1, j+1]]]
-                )
-        return square
 
+    def get_vertex(self):
+        return self.vertex.copy()
 
 class Virtural:
     def __init__(self, inf_yaml, shape_yaml, size=(1024, 1024), pic_size=(1024, 1024)):
@@ -88,6 +80,7 @@ class Virtural:
         self.Layers = []
         self.psd_size = pic_size
         self.size = size
+        self.feature = np.zeros(8)
         
         for l in inf:
             a, b, c, d = inf[l]['bbox']
@@ -109,6 +102,7 @@ class Virtural:
 
     # 位置
     def add_pos(self, face_size, x, y, a):
+        # f = 750/(800-face_size)
         f = 0.007 * face_size
         extra = matrix.translate(x, -y, 0) @ \
                 matrix.scale(f, f, 1)
@@ -131,62 +125,57 @@ class Virtural:
             change = self.change_inf[change_name]
             if layer_name in change:
                 if 'pos' in change[layer_name]:
-                    d = change[layer_name]['pos']
-                    d = np.array(d)
+                    d = np.array(change[layer_name]['pos'])
                     a[:, :2] += d.reshape(a.shape[0], 2) * intensity
         return a
+    def draw(self, layer):
+        X, Y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth = self.feature
+        vertex = layer.get_vertex()
+        x, y, _ = vertex.shape
+        ps = vertex.reshape(x*y, 8)
+        a, b = ps[:, :4], ps[:, 4:]
+        a = self.add_cut(a)
+        z = a[:, 2:3]
+        z -= 0.1
+        a[:, :2] *= z
+        a = self.add_changes([
+            ['close_mouth', 1 - mouth],
+            ['l_brow', brow_l],
+            ['r_brow', brow_r],
+            ['l_eye',1 - eye_l],
+            ['r_eye',1 - eye_r]
+        ], layer.name, a)
+        if layer.name == 'body':
+            a = self.add_rot(np.array([yaw, pitch, roll/10]),a)
+        else:
+            a = self.add_rot(np.array([yaw, pitch, roll]),a)
+        if layer.name == 'hand':
+            a = a @ matrix.translate(0.05, 0.02, 0) @ \
+                    matrix.rotate_ax(-mouse_theta, axis=(0, 1))@ \
+                    matrix.translate(-0.05, -0.02, 0)
+        a = self.add_pos(face,X,Y,a)
+        # a = a @ matrix.scale(2,2,2) \
+        #     @ matrix.rotate_ax(0.5, axis=(0, 2)) \
+        #     @ matrix.translate(0.4, 0, 0.2)
+        a = a @ matrix.perspective(999)
+        b *= z
+        ps[:, :4], ps[:, 4:] = a, b
+        ps = ps.reshape([x, y, 8])
+
+        glBegin(GL_QUADS)
+        for i in range(x-1):
+            for j in range(y-1):
+                for p in [ps[i, j], ps[i, j+1], ps[i+1, j+1], ps[i+1, j]]:
+                    glTexCoord4f(*p[4:])
+                    glVertex4f(*p[:4])
+        glEnd()
 
     def draw_loop(self, window, feature):
-
-        def draw(layer):
-            Vertexs = []
-            for square in layer.get_square():
-                [[p1, p2],
-                 [p4, p3]] = square
-                Vertexs += [p1, p2, p3, p4]
-            ps = np.array(Vertexs)
-
-            a = ps[:, :4]
-            b = ps[:, 4:]
-            a = self.add_cut(a)
-            z = a[:, 2:3]
-            a[:, :2] *= z
-            b *= z
-            
-            a = self.add_changes([
-                ['close_mouth', 1 - mouth],
-                ['l_brow', brow_l],
-                ['r_brow', brow_r],
-                ['l_eye',1 - eye_l],
-                ['r_eye',1 - eye_r]
-            ], layer.name, a)
-
-            if layer.name == 'body':
-                a = self.add_rot(np.array([yaw, pitch, roll/10]),a)
-            else:
-                a = self.add_rot(np.array([yaw, pitch, roll]),a)
-            if layer.name == 'hand':
-                a = a @ matrix.translate(0.05, 0.02, 0) @ \
-                        matrix.rotate_ax(-mouse_theta, axis=(0, 1))@ \
-                        matrix.translate(-0.05, -0.02, 0)
-            a = self.add_pos(face,x,y,a)
-            a = a @ matrix.scale(2,2,2) \
-                @ matrix.rotate_ax(0.5, axis=(0, 2)) \
-                @ matrix.translate(0.4, 0, 0.2)
-            a = a @ matrix.perspective(999)
-            for i in range(len(Vertexs)):
-                if i % 4 == 0:
-                    glBegin(GL_QUADS)
-                glTexCoord4f(*b[i])
-                glVertex4f(*a[i])
-                if i % 4 == 3:
-                    glEnd()
-
         while not glfw.window_should_close(window):
             glfw.poll_events()
             glClearColor(0,0,0,0)
             glClear(GL_COLOR_BUFFER_BIT)
-            x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth = feature()
+            self.feature = feature()
             for layer in self.Layers:
                 if layer.name == 'Q':
                     layer.visual = key_t[0]
@@ -197,13 +186,13 @@ class Virtural:
                     glBindTexture(GL_TEXTURE_2D, layer.texture_num)
                     glColor4f(1, 1, 1, 1)
                     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)
-                    draw(layer)
+                    self.draw(layer)
 
                     # 框图
                     glDisable(GL_TEXTURE_2D)
                     glColor4f(0, 0, 0, 1)
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-                    draw(layer)
+                    self.draw(layer)
             glfw.swap_buffers(window)
             time.sleep(1/30)
             test_mouse()
@@ -218,15 +207,15 @@ def init_window():
     glfw.init()
     glfw.window_hint(glfw.DECORATED, True)
     glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, True)
-    #glfw.window_hint(glfw.FLOATING, True)
+    # glfw.window_hint(glfw.FLOATING, True)
     glfw.window_hint(glfw.SAMPLES, 4)
     glfw.window_hint(glfw.RESIZABLE, False)
     window = glfw.create_window(*v_size, 'V', None, None)
     glfw.make_context_current(window)
     monitor_size = glfw.get_video_mode(glfw.get_primary_monitor()).size
     glfw.set_window_pos(window, monitor_size.width - v_size[0], monitor_size.height - v_size[1])
-    glfw.set_window_pos_callback(window, window_pos_callback)
-    glfw.set_key_callback(window, on_key)
+    # glfw.set_window_pos_callback(window, window_pos_callback)
+    # glfw.set_key_callback(window, on_key)
     window_pos = np.array([monitor_size.width - v_size[0], monitor_size.height - v_size[1]])
     glViewport(0, 0, *v_size)
     glEnable(GL_TEXTURE_2D)
@@ -244,22 +233,21 @@ def SlidingAverage(i):
     S = np.vstack((S,i))
     return np.average(S,axis=0)
 
-
 # feature定义
 # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
 feature = None
 coefficient = np.array([0.1,0.1,0.3,0.3,0.4,1,100,100,100,100,80]) # 各个参数的系数
 bias = np.array([-0.3,-0.5,0,0,0,0,-0.006,-0.006,-0.03,-0.03,-0.06]) # 各个参数的偏置
+
 def feature_generate():
     global feature
     feature = SlidingAverage((facetracter.get_feature() + bias) * coefficient)
     feature[6:11] = np.clip(feature[6:11],0,1)
     return feature
 
-
 def test_feature():
     # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
-    return np.array([0,0,0,0,0,130,0,1,1,1,1])
+    return np.array([0,0,0,0,0,140,0,1,1,1,0.5])
 
 def window_pos_callback(window, x, y):
     global window_pos
@@ -284,6 +272,7 @@ def on_key(window, key, scancode, action, mods):
         key_t[1] = not(key_t[2])
 
 window = init_window()
-V = Virtural(inf_yaml='test2_init_inf.yaml', shape_yaml='test2_inf.yaml')
+# V = Virtural(inf_yaml='test2_init_inf.yaml', shape_yaml='test2_inf.yaml')
+V = Virtural(inf_yaml='test3_init_inf.yaml', shape_yaml='test3_inf.yaml')
 # V.draw_loop(window, feature = test_feature)
 V.draw_loop(window, feature = feature_generate)
