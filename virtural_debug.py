@@ -1,8 +1,6 @@
-import sys
 import time
 import math
 import logging
-import random
 
 import numpy as np
 import yaml
@@ -14,9 +12,10 @@ from OpenGL.GLU import *
 from OpenGL.arrays import vbo
 
 import win32api
-import matrix
 
-import facetracter
+import threading
+
+import matrix
 
 v_size = 256,256
 
@@ -81,7 +80,27 @@ class Virtural:
         self.psd_size = pic_size
         self.size = size
         self.feature = np.zeros(8)
+
+        # Debug func
+
+        self.m_dbg1 = np.array([0.05, 0.02])
+        self.m_dbg2 = np.array([0, 0])
+        def reload():
+            logging.warning('Starting Debug func......')
+            while True:
+                time.sleep(1)
+                try:
+                    with open('reload.yaml', encoding='utf8') as f:
+                        i = yaml.safe_load(f)
+                        self.m_dbg1 = i['rot'][0]
+                        self.m_dbg2 = i['rot'][1]
+                except Exception as e:
+                    logging.exception(e)
         
+        t = threading.Thread(target=reload)
+        t.setDaemon(True)
+        t.start()
+
         for l in inf:
             a, b, c, d = inf[l]['bbox']
             self.Layers.append(layer(
@@ -128,7 +147,7 @@ class Virtural:
                     d = np.array(change[layer_name]['pos'])
                     a[:, :2] += d.reshape(a.shape[0], 2) * intensity
         return a
-    
+
     def draw(self, layer):
         rlt_x, rlt_y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth = self.feature
         vertex = layer.get_vertex()
@@ -151,9 +170,10 @@ class Virtural:
         else:
             a = self.add_rot(np.array([yaw, pitch, roll]),a)
         if layer.name == 'hand':
-            a = a @ matrix.translate(0.05, 0.02, 0) @ \
-                    matrix.rotate_ax(-mouse_theta, axis=(0, 1))@ \
-                    matrix.translate(-0.05, -0.02, 0)
+            a = a @ matrix.translate(self.m_dbg1[0], self.m_dbg1[1], 0) @ \
+                    matrix.rotate_ax(-mouse_theta, axis=(0, 1)) @ \
+                    matrix.translate(- self.m_dbg1[0], - self.m_dbg1[1], 0) @ \
+                    matrix.translate(self.m_dbg2[0], self.m_dbg2[1], 0)
         # a = a @ matrix.scale(2,2,2) \
         #     @ matrix.rotate_ax(0.5, axis=(0, 2)) \
         #     @ matrix.translate(0.4, 0, 0.2)
@@ -215,7 +235,7 @@ def init_window():
     glfw.make_context_current(window)
     monitor_size = glfw.get_video_mode(glfw.get_primary_monitor()).size
     glfw.set_window_pos(window, monitor_size.width - v_size[0], monitor_size.height - v_size[1])
-    # glfw.set_window_pos_callback(window, window_pos_callback)
+    glfw.set_window_pos_callback(window, window_pos_callback)
     glfw.set_key_callback(window, on_key)
     window_pos = np.array([monitor_size.width - v_size[0], monitor_size.height - v_size[1]])
     glViewport(0, 0, *v_size)
@@ -236,6 +256,7 @@ def SlidingAverage(i):
 
 # feature定义
 # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
+import facetracter
 feature = None
 coefficient = np.array([1,1,0.3,0.3,0.4,1,120,120,100,100,80]) # 各个参数的系数
 bias = np.array([0,0.2,0,0,0,0,-0.006,-0.006,-0.03,-0.03,-0.06]) # 各个参数的偏置
@@ -259,7 +280,7 @@ def test_mouse():
     global mouse_theta
     x, y = win32api.GetCursorPos()
     if (window_pos[0] - x - 1) != 0:
-        mouse_theta = np.arctan((window_pos[1] - y - 1)/(window_pos[0] - x - 1))
+        mouse_theta = np.arctan((window_pos[1] - y - 1 + 128)/(window_pos[0] - x - 1 + 128))
     # print(mouse_theta)
 
 key_t = np.array([False,False,False])
@@ -272,9 +293,9 @@ def on_key(window, key, scancode, action, mods):
     if key == glfw.KEY_F3 and action == glfw.PRESS:
         key_t[1] = not(key_t[2])
 
-
 if __name__ == '__main__':
+    t0 = time.time()
     window = init_window()
     V = Virtural(inf_yaml='test3_init_inf.yaml', shape_yaml='test3_inf.yaml')
-# V.draw_loop(window, feature = test_feature)
+    # V.draw_loop(window, feature = test_feature)
     V.draw_loop(window, feature = feature_generate)
