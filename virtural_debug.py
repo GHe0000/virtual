@@ -1,5 +1,4 @@
 import time
-import math
 import logging
 
 import numpy as np
@@ -13,9 +12,43 @@ from OpenGL.arrays import vbo
 
 import win32api
 
+import facetracter
 import threading
 
-import matrix
+
+# ---------- 矩阵定义 ----------
+def scale(x, y, z):
+    a = np.eye(4, dtype=np.float32)
+    a[0, 0] = x
+    a[1, 1] = y
+    a[2, 2] = z
+    return a
+
+
+def rotate(r, axis: tuple):
+    a = np.eye(4, dtype = np.float32)
+    a[axis[0], axis[0]] = np.cos(r)
+    a[axis[0], axis[1]] = np.sin(r)
+    a[axis[1], axis[0]] = - np.sin(r)
+    a[axis[1], axis[1]] = np.cos(r)
+    return a
+
+
+def translate(x, y, z):
+    a = np.eye(4, dtype = np.float32)
+    a[3, 0] = x
+    a[3, 1] = y
+    a[3, 2] = z
+    return a
+
+
+def perspective():
+    a = np.eye(4, dtype = np.float32)
+    a[2, 2] = 1 / 1000
+    a[3, 2] = -0.0001
+    a[2, 3] = 1
+    a[3, 3] = 0
+    return a
 
 v_size = 256,256
 
@@ -51,7 +84,7 @@ class layer:
     # 生成纹理
     def get_texture(self):
         w, h = self.npdata.shape[:2]
-        d = 2**int(max(math.log2(w), math.log2(h)) + 1)
+        d = 2**int(max(np.log2(w), np.log2(h)) + 1)
         texture = np.zeros([d, d, 4], dtype=self.npdata.dtype)
         texture[:, :, :3] = 255
         texture[:w, :h] = self.npdata
@@ -69,7 +102,7 @@ class layer:
         return self.vertex.copy()
 
 class Virtural:
-    def __init__(self, inf_yaml, shape_yaml, size=(1024, 1024), pic_size=(1024, 1024)):
+    def __init__(self, inf_yaml, shape_yaml, debug_others_inf_yaml, size=(1024, 1024), pic_size=(1024, 1024)):
         with open(inf_yaml, encoding='utf8') as f:
             inf = yaml.safe_load(f)
 
@@ -81,25 +114,7 @@ class Virtural:
         self.size = size
         self.feature = np.zeros(8)
 
-        # Debug func
-
-        self.m_dbg1 = np.array([0.05, 0.02])
-        self.m_dbg2 = np.array([0, 0])
-        def reload():
-            logging.warning('Starting Debug func......')
-            while True:
-                time.sleep(1)
-                try:
-                    with open('reload.yaml', encoding='utf8') as f:
-                        i = yaml.safe_load(f)
-                        self.m_dbg1 = i['rot'][0]
-                        self.m_dbg2 = i['rot'][1]
-                except Exception as e:
-                    logging.exception(e)
-        
-        t = threading.Thread(target=reload)
-        t.setDaemon(True)
-        t.start()
+        self.hand_delta_pos = np.zeros(2)
 
         for l in inf:
             a, b, c, d = inf[l]['bbox']
@@ -111,31 +126,59 @@ class Virtural:
                 visual=inf[l]['visual']
             ))
 
+        # Debug func init
+        def update_num(yaml_inf):
+            global coefficient
+            global bias
+            global test
+
+            coefficient = yaml_inf['coefficient']
+            bias = yaml_inf['bias']
+            test = yaml_inf['test']
+            self.hand_delta_pos = yaml_inf['hand']
+
+        def reload(path):
+            try:
+                with open(path, encoding='utf8') as f:
+                    return yaml.safe_load(f)
+            except Exception as error:
+                    logging.exception(error)
+
+        def reload_thread():
+            logging.warning('Reload Thread Looping......')
+            while True:
+                self.change_inf = reload(shape_yaml)
+                update_num(reload(debug_others_inf_yaml))
+                time.sleep(1)
+
+        t = threading.Thread(target=reload_thread)
+        t.setDaemon(True)
+        t.start()
+
     # 缩放
     def add_cut(self, a):
         model_g = \
-                matrix.scale(2 / self.psd_size[0], 2 / self.psd_size[1], 1) @ \
-                matrix.translate(-1, -1, 0) @ \
-                matrix.rotate_ax(-math.pi / 2, axis=(0, 1))
+                scale(2 / self.psd_size[0], 2 / self.psd_size[1], 1) @ \
+                translate(-1, -1, 0) @ \
+                rotate(-np.pi / 2, axis=(0, 1))
         return a @ model_g
 
     # 位置
     def add_pos(self, face_size, x, y, a):
         f = 750/(800-face_size)
-        # f = 0.007 * face_size
-        extra = matrix.translate(x, -y, 0) @ \
-                matrix.scale(f, f, 1)
+        extra = translate(x, -y, 0) @ \
+                scale(f, f, 1)
         return a @ extra
 
     # 旋转
     def add_rot(self, rot, a):
         # yaw, pitch, roll
         view = \
-                matrix.translate(0, 0, -1) @ \
-                matrix.rotate_ax(rot[0], axis=(0, 2)) @ \
-                matrix.rotate_ax(rot[1], axis=(2, 1)) @ \
-                matrix.rotate_ax(rot[2], axis=(0, 1)) @ \
-                matrix.translate(0, 0, 1)
+                translate(0, 0, -1) @ \
+                rotate(rot[0], axis=(0, 2)) @ \
+                rotate(rot[1], axis=(2, 1)) @ \
+                rotate(rot[2], axis=(0, 1)) @ \
+                translate(0, 0, 1)
         return a @ view
 
     # 叠加变形
@@ -147,6 +190,13 @@ class Virtural:
                     d = np.array(change[layer_name]['pos'])
                     a[:, :2] += d.reshape(a.shape[0], 2) * intensity
         return a
+
+    # 更新是否可见
+    def update_layer_visual(self, layer):
+        if layer.name == "Q":
+            layer.visual = key_state[0]
+        if layer.name == "hand":
+            layer.visual = key_state[1]
 
     def draw(self, layer):
         rlt_x, rlt_y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth = self.feature
@@ -170,14 +220,13 @@ class Virtural:
         else:
             a = self.add_rot(np.array([yaw, pitch, roll]),a)
         if layer.name == 'hand':
-            a = a @ matrix.translate(self.m_dbg1[0], self.m_dbg1[1], 0) @ \
-                    matrix.rotate_ax(-mouse_theta, axis=(0, 1)) @ \
-                    matrix.translate(- self.m_dbg1[0], - self.m_dbg1[1], 0) @ \
-                    matrix.translate(self.m_dbg2[0], self.m_dbg2[1], 0)
-        # a = a @ matrix.scale(2,2,2) \
-        #     @ matrix.rotate_ax(0.5, axis=(0, 2)) \
-        #     @ matrix.translate(0.4, 0, 0.2)
-        a = a @ matrix.perspective(999)
+            a = a @ translate(0.02, 0.11, 0) @ \
+                    rotate(- mouse_theta, axis=(0, 1))@ \
+                    translate(-0.05, -0.11, 0)
+        # a = a @ scale(2,2,2) \
+        #     @ rotate(0.5, axis=(0, 2)) \
+        #     @ translate(0.4, 0, 0.2)
+        a = a @ perspective()
         a = self.add_pos(face,rlt_x,rlt_y,a)
         b *= z
         ps[:, :4], ps[:, 4:] = a, b
@@ -198,10 +247,7 @@ class Virtural:
             glClear(GL_COLOR_BUFFER_BIT)
             self.feature = feature()
             for layer in self.Layers:
-                if layer.name == 'Q':
-                    layer.visual = key_t[0]
-                if layer.name == 'hand':
-                    layer.visual = key_t[1]
+                self.update_layer_visual(layer)
                 if layer.visual == True:
                     glEnable(GL_TEXTURE_2D)
                     glBindTexture(GL_TEXTURE_2D, layer.texture_num)
@@ -215,14 +261,13 @@ class Virtural:
                     glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
                     self.draw(layer)
             glfw.swap_buffers(window)
-            time.sleep(1/30)
-            test_mouse()
+            get_mouse_theta()
+            time.sleep(1/25)
 
-
-# 窗口初始化
+# ---------- 窗口生成 ----------
 monitor_size = None
 window_pos = None
-def init_window():
+def init_window(v_size=(256,256)):
     global monitor_size
     global window_pos
     glfw.init()
@@ -231,12 +276,12 @@ def init_window():
     glfw.window_hint(glfw.FLOATING, True)
     glfw.window_hint(glfw.SAMPLES, 4)
     glfw.window_hint(glfw.RESIZABLE, False)
-    window = glfw.create_window(*v_size, 'V', None, None)
+    window = glfw.create_window(*v_size, 'Virtural', None, None)
     glfw.make_context_current(window)
     monitor_size = glfw.get_video_mode(glfw.get_primary_monitor()).size
     glfw.set_window_pos(window, monitor_size.width - v_size[0], monitor_size.height - v_size[1])
     glfw.set_window_pos_callback(window, window_pos_callback)
-    glfw.set_key_callback(window, on_key)
+    glfw.set_key_callback(window, key_callback)
     window_pos = np.array([monitor_size.width - v_size[0], monitor_size.height - v_size[1]])
     glViewport(0, 0, *v_size)
     glEnable(GL_TEXTURE_2D)
@@ -246,7 +291,8 @@ def init_window():
     return window
 
 
-# 滤波
+
+# ---------- 数据生成及处理 ----------
 S = np.zeros((8,11))
 def SlidingAverage(i):
     global S
@@ -256,46 +302,37 @@ def SlidingAverage(i):
 
 # feature定义
 # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
-import facetracter
 feature = None
-coefficient = np.array([1,1,0.3,0.3,0.4,1,120,120,100,100,80]) # 各个参数的系数
-bias = np.array([0,0.2,0,0,0,0,-0.006,-0.006,-0.03,-0.03,-0.06]) # 各个参数的偏置
-
+coefficient = np.array([1,1,0.3,0.3,0.4,1,150,150,100,100,80]) # 各个参数的系数
+bias = np.array([-0.5,-0.4,0,0,0,0,-0.006,-0.006,-0.03,-0.03,-0.06]) # 各个参数的偏置
 def feature_generate():
     global feature
     feature = SlidingAverage((facetracter.get_feature() + bias) * coefficient)
     feature[6:11] = np.clip(feature[6:11],0,1)
     return feature
 
-def test_feature():
-    # x, y, yaw, pitch, roll, face, eye_l, eye_r, brow_l, brow_r, mouth
-    return np.array([0,0,0,0,0,140,1,1,1,1,1])
-
 def window_pos_callback(window, x, y):
     global window_pos
     window_pos = np.array([x,y])
 
 mouse_theta = 0
-def test_mouse():
+def get_mouse_theta():
     global mouse_theta
     x, y = win32api.GetCursorPos()
     if (window_pos[0] - x - 1) != 0:
-        mouse_theta = np.arctan((window_pos[1] - y - 1 + 128)/(window_pos[0] - x - 1 + 128))
-    # print(mouse_theta)
+        mouse_theta = np.arctan((window_pos[1] - y - 1)/(window_pos[0] - x - 1))
 
-key_t = np.array([False,False,False])
-def on_key(window, key, scancode, action, mods):
-    global key_t
+key_state = np.array([False] * 2)
+def key_callback(window, key, scancode, action, mods):
+    global key_state
     if key == glfw.KEY_F1 and action == glfw.PRESS:
-        key_t[0] = not(key_t[0])
+        key_state[0] = not(key_state[0])
     if key == glfw.KEY_F2 and action == glfw.PRESS:
-        key_t[1] = not(key_t[1])
-    if key == glfw.KEY_F3 and action == glfw.PRESS:
-        key_t[1] = not(key_t[2])
-
+        key_state[1] = not(key_state[1])
 if __name__ == '__main__':
-    t0 = time.time()
     window = init_window()
-    V = Virtural(inf_yaml='test3_init_inf.yaml', shape_yaml='test3_inf.yaml')
+    V = Virtural(inf_yaml='./debug/init_inf.yaml', \
+                shape_yaml='./debug/change_inf.yaml', \
+                debug_others_inf_yaml='./debug/others.yaml')
     # V.draw_loop(window, feature = test_feature)
     V.draw_loop(window, feature = feature_generate)
