@@ -1,0 +1,25 @@
+1:
+    visual:
+        True
+    path:
+        1.npy
+    bbox:
+        - 198
+        - 232
+        - 250
+        - 284
+    depth:
+        0.4
+
+2:
+    visual:
+        True
+    path:
+        2.npy
+    bbox:
+        - 173
+        - 101
+        - 273
+        - 218
+    depth:
+        0.5
