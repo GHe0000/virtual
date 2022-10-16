@@ -135,11 +135,17 @@ class Virtural:
                 visual=inf[l]['visual']
             ))
 
-        def update_num(yaml_inf):
+        def update_others(yaml_inf):
             global test
             global t_c1
+            global t_c2
+            global coefficient
+            global bias
             test = yaml_inf['test']
             t_c1 = yaml_inf['t_c1']
+            t_c2 = yaml_inf['t_c2']
+            coefficient = yaml_inf['coefficient']
+            bias = yaml_inf['bias']
 
         def update_test(yaml_inf):
             self.test_dx = yaml_inf
@@ -154,7 +160,8 @@ class Virtural:
         def reload_thread():
             logging.warning('Reload Thread Looping......')
             while True:
-                update_num(reload(others_yaml))
+                self.change_inf = reload(shape_yaml)
+                update_others(reload(others_yaml))
                 update_test(reload(test_yaml))
                 time.sleep(1)
 
@@ -195,7 +202,6 @@ class Virtural:
             view = perspective() @ translate(-dx, -dy, 0) @ inperspective()
             view = view @ translate(0, 0, -1)
             view = view @ rotate(rot[0], axis=(0, 2)) @ rotate(rot[1], axis=(2, 1)) @ rotate(rot[2], axis=(0, 1))
-            view = view @ rotate(rot[2], axis=(0, 1))
             view = view @ translate(0,0,1)
             view = view @ perspective() @ translate(dx, dy, 0) @ inperspective()
         else:
@@ -234,7 +240,7 @@ class Virtural:
         a, b = ps[:, :4], ps[:, 4:]
         a = self.add_cut(a)
         a = a @ translate(t_c1[0],t_c1[1],0)
-        a = a @ scale(1,1,1)
+        # a = a @ scale(0.4,0.4,1)
 
         z = a[:, 2:3]
         z -= 0.1
@@ -250,8 +256,38 @@ class Virtural:
             ['l_brow', brow_l],
             ['r_brow', brow_r],
             ['l_eye',1 - eye_l],
-            ['r_eye',1 - eye_r]
-        ], layer.name, a)
+            ['r_eye',1 - eye_r]],layer.name, a)
+
+        # if layer.name == 'eye_l':
+        #     view = perspective() @ translate(-t_c2[0], -t_c2[1], 0) @ inperspective()
+        #     view = view @ translate(0, 0, -1)
+        #     view = view @ rotate(t_c2[2], axis=(0, 1))
+        #     view = view @ translate(0,0,1)
+        #     view = view @ perspective() @ translate(t_c2[0], t_c2[1], 0) @ inperspective()
+        #     a = a @ view
+        # if layer.name == 'eye_r':
+        #     view = perspective() @ translate(-t_c2[3], -t_c2[4], 0) @ inperspective()
+        #     view = view @ translate(0, 0, -1)
+        #     view = view @ rotate(t_c2[5], axis=(0, 1))
+        #     view = view @ translate(0,0,1)
+        #     view = view @ perspective() @ translate(t_c2[3], t_c2[4], 0) @ inperspective()
+        #     a = a @ view
+        # if layer.name == 'body':
+        #     a = self.add_rot(np.array([yaw, pitch, roll/10]),layer.name,a)
+        # else:
+        #     a = self.add_rot(np.array([yaw, pitch, roll]),layer.name,a)
+        # if layer.name == 'hand':
+        #     a = a @ translate(0.02, 0.11, 0) @ \
+        #             rotate(- mouse_theta, axis=(0, 1))@ \
+        #             translate(-0.05, -0.11, 0)
+        # if layer.name == 'body_down' or layer.name == 'tail' or layer.name == 'leg_l' or layer.name == 'leg_r':
+        #     a = a
+        # else:
+        #     if layer.name == 'body_up':
+        #         a = self.add_rot(np.array([yaw/2, pitch, roll / 5]),layer.name,a)
+        #     else:
+        #         a = self.add_rot(np.array([yaw/1.1, pitch, roll]),layer.name,a)
+
         if layer.name == 'body':
             a = self.add_rot(np.array([yaw, pitch, roll/10]),layer.name,a)
         else:
@@ -297,16 +333,16 @@ class Virtural:
                     self.draw(layer)
 
                     # 框图
-                    glDisable(GL_TEXTURE_2D)
-                    glColor4f(0, 0, 0, 1)
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-                    self.draw(layer)
+                    # glDisable(GL_TEXTURE_2D)
+                    # glColor4f(0, 0, 0, 1)
+                    # glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+                    # self.draw(layer)
 
-            glPointSize(t_c1[6])
-            glColor3f(1.0, 0.0, 0.0)
-            glBegin(GL_POINTS)
-            glVertex4f(*p_a)
-            glEnd()
+            # glPointSize(t_c1[6])
+            # glColor3f(1.0, 0.0, 0.0)
+            # glBegin(GL_POINTS)
+            # glVertex4f(*p_a)
+            # glEnd()
 
             glfw.swap_buffers(window)
             get_mouse_theta()
@@ -317,14 +353,15 @@ class Virtural:
 # ---------- 窗口生成 ----------
 monitor_size = None
 window_pos = None
-def init_window(v_size=(512,512)):
+def init_window(v_size=(350,350)):
     global monitor_size
     global window_pos
     glfw.init()
-    glfw.window_hint(glfw.DECORATED, True)
+    glfw.window_hint(glfw.DECORATED, False)
     glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, True)
     glfw.window_hint(glfw.FLOATING, True)
     glfw.window_hint(glfw.SAMPLES, 4)
+    # glfw.window_hint(glfw.FOCUSED, True)
     glfw.window_hint(glfw.RESIZABLE, False)
     window = glfw.create_window(*v_size, 'V', None, None)
     glfw.make_context_current(window)
@@ -385,12 +422,26 @@ def test_feature():
 
 t0 = time.time()
 t_c1 = np.zeros(10)
+t_c2 = np.zeros(6)
+
+
+# encoding = utf-8
+from win32api import SetWindowLong,RGB
+from win32con import WS_EX_LAYERED,WS_EX_TRANSPARENT,GWL_EXSTYLE,LWA_ALPHA
+from win32gui import GetWindowLong,GetForegroundWindow,SetLayeredWindowAttributes
+def test_int():
+    hWindow = GetForegroundWindow()
+    # self.wnd_hd_list.append(GetForegroundWindow())
+    exStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT
+    SetWindowLong(hWindow, GWL_EXSTYLE,exStyle)
+    # SetLayeredWindowAttributes(hWindow,RGB(0,0,0),150,LWA_ALPHA)
 
 if __name__ == '__main__':
     window = init_window()
+    test_int()
     V = Virtural(inf_yaml='./Pic/init_inf.yaml',\
                  shape_yaml='./Pic/change_inf.yaml',\
-                 test_yaml='./test.yaml',\
-                 others_yaml='./others.yaml')
+                 test_yaml='./Pic/test.yaml',\
+                 others_yaml='./Pic/others.yaml')
     # V.draw_loop(window, feature = test_feature)
     V.draw_loop(window, feature = feature_generate)

@@ -1,0 +1,95 @@
+face:
+    visual:
+        True
+    path:
+        Label/face.npy
+    bbox:
+        - 119
+        - 188
+        - 449
+        - 301
+    depth:
+        0.5
+
+hand:
+    visual:
+        True
+    path:
+        Label/hand.npy
+    bbox:
+        - 63
+        - 186
+        - 103
+        - 278
+    depth:
+        0.45
+
+eye_r:
+    visual:
+        True
+    path:
+        Label/eye_r.npy
+    bbox:
+        - 340
+        - 216
+        - 376
+        - 250
+    depth:
+        0.4
+
+eye_l:
+    visual:
+        True
+    path:
+        Label/eye_l.npy
+    bbox:
+        - 191
+        - 216
+        - 227
+        - 251
+    depth:
+        0.4
+
+mouth:
+    visual:
+        True
+    path:
+        Label/mouth.npy
+    bbox:
+        - 266
+        - 258
+        - 309
+        - 294
+    depth:
+        - [0.4, 0.4]
+        - [0.4, 0.4]
+        - [0.4, 0.4]
+        - [0.4, 0.4]
+        - [0.4, 0.4]
+        - [0.4, 0.4]
+
+brow_r:
+    visual:
+        True
+    path:
+        Label/brow_r.npy
+    bbox:
+        - 341
+        - 186
+        - 379
+        - 198
+    depth:
+        0.4
+
+brow_l:
+    visual:
+        True
+    path:
+        Label/brow_l.npy
+    bbox:
+        - 192
+        - 186
+        - 230
+        - 198
+    depth:
+        0.4

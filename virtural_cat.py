@@ -343,19 +343,20 @@ class Virtural:
 # ---------- 窗口生成 ----------
 monitor_size = None
 window_pos = None
-def init_window(v_size=(512,512)):
+def init_window(v_size=(350,350)):
     global monitor_size
     global window_pos
     glfw.init()
-    glfw.window_hint(glfw.DECORATED, True)
+    glfw.window_hint(glfw.DECORATED, False)
     glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, True)
     glfw.window_hint(glfw.FLOATING, True)
     glfw.window_hint(glfw.SAMPLES, 4)
+    # glfw.window_hint(glfw.FOCUSED, True)
     glfw.window_hint(glfw.RESIZABLE, False)
     window = glfw.create_window(*v_size, 'V', None, None)
     glfw.make_context_current(window)
     monitor_size = glfw.get_video_mode(glfw.get_primary_monitor()).size
-    glfw.set_window_pos(window, monitor_size.width - v_size[0], monitor_size.height - v_size[1])
+    glfw.set_window_pos(window, monitor_size.width - v_size[0], monitor_size.height - v_size[1] - 30)
     glfw.set_window_pos_callback(window, window_pos_callback)
     glfw.set_key_callback(window, key_callback)
     window_pos = np.array([monitor_size.width - v_size[0], monitor_size.height - v_size[1]])
@@ -413,11 +414,24 @@ t0 = time.time()
 t_c1 = np.zeros(10)
 t_c2 = np.zeros(6)
 
+
+# encoding = utf-8
+from win32api import SetWindowLong,RGB
+from win32con import WS_EX_LAYERED,WS_EX_TRANSPARENT,GWL_EXSTYLE,LWA_ALPHA
+from win32gui import GetWindowLong,GetForegroundWindow,SetLayeredWindowAttributes
+def test_int():
+    hWindow = GetForegroundWindow()
+    # self.wnd_hd_list.append(GetForegroundWindow())
+    exStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT
+    SetWindowLong(hWindow, GWL_EXSTYLE,exStyle)
+    # SetLayeredWindowAttributes(hWindow,RGB(0,0,0),150,LWA_ALPHA)
+
 if __name__ == '__main__':
     window = init_window()
-    V = Virtural(inf_yaml='./debug/init_inf4.yaml',\
-                 shape_yaml='./debug/change_inf2.yaml',\
-                 test_yaml='./test2.yaml',\
-                 others_yaml='./others2.yaml')
+    test_int()
+    V = Virtural(inf_yaml='./Cat2/init_inf.yaml',\
+                 shape_yaml='./Cat2/change_inf.yaml',\
+                 test_yaml='./Cat2/test.yaml',\
+                 others_yaml='./Cat2/others.yaml')
     # V.draw_loop(window, feature = test_feature)
     V.draw_loop(window, feature = feature_generate)
