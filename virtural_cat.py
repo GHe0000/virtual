@@ -418,9 +418,9 @@ t_c2 = np.zeros(6)
 # encoding = utf-8
 from win32api import SetWindowLong,RGB
 from win32con import WS_EX_LAYERED,WS_EX_TRANSPARENT,GWL_EXSTYLE,LWA_ALPHA
-from win32gui import GetWindowLong,GetForegroundWindow,SetLayeredWindowAttributes
+from win32gui import GetWindowLong,GetForegroundWindow,SetLayeredWindowAttributes,FindWindow
 def test_int():
-    hWindow = GetForegroundWindow()
+    hWindow = FindWindow('GLFW30','V')
     # self.wnd_hd_list.append(GetForegroundWindow())
     exStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT
     SetWindowLong(hWindow, GWL_EXSTYLE,exStyle)

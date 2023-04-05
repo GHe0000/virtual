@@ -1,4 +1,3 @@
-# encoding = utf-8
 from win32api import SetWindowLong,RGB
 from win32con import WS_EX_LAYERED,WS_EX_TRANSPARENT,GWL_EXSTYLE,LWA_ALPHA
 from win32gui import GetWindowLong,GetForegroundWindow,SetLayeredWindowAttributes
@@ -39,6 +38,6 @@ class WinThrow():
 
 if __name__ == '__main__':
     s = WinThrow()
-    add_hotkey('f2',s.main)
-    wait('shift+esc')
+    add_hotkey('alt+shift+f2',s.main)
+    wait('alt+shift+esc')
     s.exitApp()

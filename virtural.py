@@ -228,10 +228,10 @@ class Virtural:
                     self.draw(layer)
 
                     # 框图
-                    glDisable(GL_TEXTURE_2D)
-                    glColor4f(0, 0, 0, 1)
-                    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
-                    self.draw(layer)
+                    # glDisable(GL_TEXTURE_2D)
+                    # glColor4f(0, 0, 0, 1)
+                    # glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)
+                    # self.draw(layer)
             glfw.swap_buffers(window)
             get_mouse_theta()
             time.sleep(1/25)
@@ -304,6 +304,7 @@ def key_callback(window, key, scancode, action, mods):
     if key == glfw.KEY_F2 and action == glfw.PRESS:
         key_state[1] = not(key_state[1])
 
+t0 = time.time()
 
 if __name__ == '__main__':
     window = init_window()

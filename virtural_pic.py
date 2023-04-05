@@ -353,6 +353,7 @@ class Virtural:
 # ---------- 窗口生成 ----------
 monitor_size = None
 window_pos = None
+window = None
 def init_window(v_size=(350,350)):
     global monitor_size
     global window_pos
@@ -428,9 +429,9 @@ t_c2 = np.zeros(6)
 # encoding = utf-8
 from win32api import SetWindowLong,RGB
 from win32con import WS_EX_LAYERED,WS_EX_TRANSPARENT,GWL_EXSTYLE,LWA_ALPHA
-from win32gui import GetWindowLong,GetForegroundWindow,SetLayeredWindowAttributes
+from win32gui import GetWindowLong,GetForegroundWindow,SetLayeredWindowAttributes,FindWindow
 def test_int():
-    hWindow = GetForegroundWindow()
+    hWindow = FindWindow('GLFW30','V')
     # self.wnd_hd_list.append(GetForegroundWindow())
     exStyle = WS_EX_LAYERED | WS_EX_TRANSPARENT
     SetWindowLong(hWindow, GWL_EXSTYLE,exStyle)
